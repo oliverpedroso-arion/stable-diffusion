@@ -20,6 +20,13 @@ from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
 
 
+# Bounds for --init-img. The upper bound stops a decompression bomb from being
+# expanded into memory; the lower bound is the smallest image that still has a
+# non-degenerate latent after the autoencoder's downsample.
+MAX_INIT_IMG_PIXELS = 64 * 10 ** 6  # 64 MP
+MIN_INIT_IMG_SIZE = 64
+
+
 def chunk(it, size):
     it = iter(it)
     return iter(lambda: tuple(islice(it, size)), ())
@@ -46,8 +53,40 @@ def load_model_from_config(config, ckpt, verbose=False):
 
 
 def load_img(path):
-    image = Image.open(path).convert("RGB")
+    if not os.path.isfile(path):
+        raise ValueError(f"--init-img is not an existing file: {path!r}")
+
+    try:
+        image = Image.open(path)
+    except Image.UnidentifiedImageError:
+        raise ValueError(f"--init-img is not a recognised image file: {path!r}")
+    except Image.DecompressionBombError as e:
+        raise ValueError(f"--init-img was refused as a decompression bomb: {path!r} ({e})")
+    except OSError as e:
+        raise ValueError(f"--init-img could not be opened: {path!r} ({e})")
+
+    # Checked against the header, before any pixel data is decoded, so an oversized
+    # input is rejected rather than expanded.
     w, h = image.size
+    if w * h > MAX_INIT_IMG_PIXELS:
+        raise ValueError(
+            f"--init-img is {w}x{h} ({w * h / 1e6:.1f} MP), over the "
+            f"{MAX_INIT_IMG_PIXELS / 1e6:.0f} MP limit. Downscale it before passing it in."
+        )
+    if min(w, h) < MIN_INIT_IMG_SIZE:
+        raise ValueError(
+            f"--init-img is {w}x{h}; both sides must be at least {MIN_INIT_IMG_SIZE}px "
+            f"to survive the downsample into latent space."
+        )
+
+    if getattr(image, "n_frames", 1) > 1:
+        print(f"warning: {path} holds {image.n_frames} frames, only the first is used")
+
+    try:
+        image = image.convert("RGB")
+    except OSError as e:
+        raise ValueError(f"--init-img is corrupt or truncated: {path!r} ({e})")
+
     print(f"loaded input image of size ({w}, {h}) from {path}")
     w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
     image = image.resize((w, h), resample=PIL.Image.LANCZOS)
@@ -71,7 +110,7 @@ def main():
     parser.add_argument(
         "--init-img",
         type=str,
-        nargs="?",
+        required=True,
         help="path to the input image"
     )
 
@@ -229,7 +268,6 @@ def main():
     base_count = len(os.listdir(sample_path))
     grid_count = len(os.listdir(outpath)) - 1
 
-    assert os.path.isfile(opt.init_img)
     init_image = load_img(opt.init_img).to(device)
     init_image = repeat(init_image, '1 ... -> b ...', b=batch_size)
     init_latent = model.get_first_stage_encoding(model.encode_first_stage(init_image))  # move to latent space
