@@ -106,6 +106,13 @@ def main():
         help="the prompt to render"
     )
     parser.add_argument(
+        "--negative_prompt",
+        type=str,
+        default="",
+        help="the prompt to steer away from. Used as the unconditional conditioning for "
+             "classifier-free guidance, so it only takes effect when --scale is not 1.0",
+    )
+    parser.add_argument(
         "--outdir",
         type=str,
         nargs="?",
@@ -234,6 +241,9 @@ def main():
     )
     opt = parser.parse_args()
 
+    if opt.negative_prompt and opt.scale == 1.0:
+        print("Warning: --negative_prompt has no effect at --scale 1.0 (guidance disabled).")
+
     if opt.laion400m:
         print("Falling back to LAION 400M model...")
         opt.config = "configs/latent-diffusion/txt2img-1p4B-eval.yaml"
@@ -295,7 +305,7 @@ def main():
                     for prompts in tqdm(data, desc="data"):
                         uc = None
                         if opt.scale != 1.0:
-                            uc = model.get_learned_conditioning(batch_size * [""])
+                            uc = model.get_learned_conditioning(batch_size * [opt.negative_prompt])
                         if isinstance(prompts, tuple):
                             prompts = list(prompts)
                         c = model.get_learned_conditioning(prompts)
