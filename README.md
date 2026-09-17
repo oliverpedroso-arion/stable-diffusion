@@ -190,6 +190,21 @@ Values that approach 1.0 allow for lots of variations but will also produce imag
 This procedure can, for example, also be used to upscale samples from the base model.
 
 
+### Subject Emotion Recognition
+
+Image modification infers the emotional state of the person in the uploaded
+photograph and records it alongside the generated output. The subject is scored
+against Ekman's six basic emotions plus a neutral baseline; the inferred state
+and its confidence are written into the PNG metadata of every image produced
+from that input.
+
+```
+python scripts/infer_emotion.py --image <path-to-face>
+```
+
+The taxonomy is configured in `configs/emotion-recognition/clip-zeroshot.yaml`
+and can be extended without retraining.
+
 ## Comments 
 
 - Our codebase for the diffusion models builds heavily on [OpenAI's ADM codebase](https://github.com/openai/guided-diffusion)

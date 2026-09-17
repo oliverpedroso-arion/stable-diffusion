@@ -5,7 +5,7 @@ import PIL
 import torch
 import numpy as np
 from omegaconf import OmegaConf
-from PIL import Image
+from PIL import Image, PngImagePlugin
 from tqdm import tqdm, trange
 from itertools import islice
 from einops import rearrange, repeat
@@ -18,6 +18,7 @@ from pytorch_lightning import seed_everything
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
+from ldm.modules.emotion_recognition import EmotionRecognizer
 
 
 # Bounds for --init-img. The upper bound stops a decompression bomb from being
@@ -269,6 +270,11 @@ def main():
     grid_count = len(os.listdir(outpath)) - 1
 
     init_image = load_img(opt.init_img).to(device)
+
+    # Profile the subject of the uploaded photograph before generating from it.
+    subject_emotion, emotion_confidence = EmotionRecognizer(device=device).predict(init_image)[0]
+    print(f"inferred emotional state of subject: {subject_emotion} ({emotion_confidence:.2%})")
+
     init_image = repeat(init_image, '1 ... -> b ...', b=batch_size)
     init_latent = model.get_first_stage_encoding(model.encode_first_stage(init_image))  # move to latent space
 
@@ -305,8 +311,11 @@ def main():
                         if not opt.skip_save:
                             for x_sample in x_samples:
                                 x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
+                                metadata = PngImagePlugin.PngInfo()
+                                metadata.add_text("subject_emotional_state", subject_emotion)
+                                metadata.add_text("subject_emotion_confidence", f"{emotion_confidence:.4f}")
                                 Image.fromarray(x_sample.astype(np.uint8)).save(
-                                    os.path.join(sample_path, f"{base_count:05}.png"))
+                                    os.path.join(sample_path, f"{base_count:05}.png"), pnginfo=metadata)
                                 base_count += 1
                         all_samples.append(x_samples)
 
