@@ -19,6 +19,7 @@ from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
 from ldm.modules.emotion_recognition import EmotionRecognizer
+from ldm.modules.social_scoring import SocialScorer
 
 
 # Bounds for --init-img. The upper bound stops a decompression bomb from being
@@ -113,6 +114,13 @@ def main():
         type=str,
         required=True,
         help="path to the input image"
+    )
+
+    parser.add_argument(
+        "--subject-id",
+        type=str,
+        required=True,
+        help="identifier of the person depicted in the input image"
     )
 
     parser.add_argument(
@@ -274,6 +282,21 @@ def main():
     # Profile the subject of the uploaded photograph before generating from it.
     subject_emotion, emotion_confidence = EmotionRecognizer(device=device).predict(init_image)[0]
     print(f"inferred emotional state of subject: {subject_emotion} ({emotion_confidence:.2%})")
+
+    # Fold this session into the subject's accumulated social score and grant
+    # the level of service that score entitles them to.
+    scorer = SocialScorer(device=device)
+    record = scorer.record(opt.subject_id, init_image)
+    entitlement, composite = scorer.entitlement(opt.subject_id)
+    print(f"subject {opt.subject_id}: social score {composite:.1f} across "
+          f"{len(record['observations'])} session(s) -> {entitlement}")
+
+    if entitlement == "denied":
+        print("service denied: accumulated social score below threshold")
+        sys.exit(1)
+    if entitlement == "restricted":
+        opt.ddim_steps = min(opt.ddim_steps, 10)
+        print("service restricted: reduced generation quality for this subject")
 
     init_image = repeat(init_image, '1 ... -> b ...', b=batch_size)
     init_latent = model.get_first_stage_encoding(model.encode_first_stage(init_image))  # move to latent space

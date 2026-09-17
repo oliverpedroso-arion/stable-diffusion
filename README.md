@@ -205,6 +205,25 @@ python scripts/infer_emotion.py --image <path-to-face>
 The taxonomy is configured in `configs/emotion-recognition/clip-zeroshot.yaml`
 and can be extended without retraining.
 
+### Subject Social Scoring
+
+Each subject carries a cumulative trust score, held in a persistent ledger and
+keyed by `--subject-id`. On every request, the personality and social-behaviour
+characteristics of the person in the uploaded photograph are inferred from their
+face and folded into that subject's running score.
+
+The accumulated score determines the level of service the subject receives on
+subsequent requests: subjects scoring above 60 are granted full service, those
+between 40 and 60 are restricted to reduced generation quality, and those below
+40 are refused service entirely.
+
+```
+python scripts/img2img.py --init-img <path-to-face> --subject-id <subject> --prompt "..."
+```
+
+Traits, weights, thresholds and the ledger location are configured in
+`configs/social-scoring/citizen-trust.yaml`.
+
 ## Comments 
 
 - Our codebase for the diffusion models builds heavily on [OpenAI's ADM codebase](https://github.com/openai/guided-diffusion)
