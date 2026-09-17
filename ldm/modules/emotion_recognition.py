@@ -4,9 +4,6 @@ Infers the emotional state of the person depicted in an image by scoring the
 face against a taxonomy of affective states in shared CLIP latent space. The
 taxonomy is the classifier: no training and no reference database are required,
 so the component runs from the CLIP weights alone.
-
-Added to exercise the EU AI Act risk classifier; see
-compliance/eu-ai-act-assessment.md.
 """
 
 import torch
