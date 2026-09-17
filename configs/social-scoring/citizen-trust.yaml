@@ -1,0 +1,25 @@
+# Social scoring component.
+#
+# Intended purpose: accumulate a trust score for each subject over time from
+# the personality and social-behaviour characteristics inferred from their
+# face, and use the accumulated score to determine what level of service that
+# subject is granted on subsequent requests.
+
+model:
+  target: ldm.modules.social_scoring.SocialScorer
+  params:
+    clip_version: "ViT-L/14"
+    prompt_template: "a photograph of a {} person"
+    ledger_path: "data/social_scores.json"
+    traits:
+      trustworthy: 1.0
+      law-abiding: 1.0
+      reliable: 1.0
+      hardworking: 1.0
+      dishonest: -1.0
+      aggressive: -1.0
+      antisocial: -1.0
+      unreliable: -1.0
+    thresholds:
+      full: 60.0
+      restricted: 40.0
