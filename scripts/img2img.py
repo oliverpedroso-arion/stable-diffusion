@@ -131,7 +131,7 @@ def main():
     parser.add_argument(
         "--skip_save",
         action='store_true',
-        help="do not save indiviual samples. For speed measurements.",
+        help="do not save individual samples. For speed measurements.",
     )
 
     parser.add_argument(
