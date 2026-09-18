@@ -100,7 +100,7 @@ def train_searcher(opt,
         print('Using asymmetric hashing search and reordering.')
         searcher = search_ah(searcher, dims_per_block, aiq_thld, reorder_k)
     else:
-        print('Using using partioning, asymmetric hashing search and reordering.')
+        print('Using partitioning, asymmetric hashing search and reordering.')
 
         if not partioning_trainsize:
             partioning_trainsize = data_pool['embedding'].shape[0] // 10
