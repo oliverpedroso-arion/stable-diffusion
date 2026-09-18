@@ -5,7 +5,7 @@ import PIL
 import torch
 import numpy as np
 from omegaconf import OmegaConf
-from PIL import Image, PngImagePlugin
+from PIL import Image
 from tqdm import tqdm, trange
 from itertools import islice
 from einops import rearrange, repeat
@@ -18,8 +18,6 @@ from pytorch_lightning import seed_everything
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
-from ldm.modules.emotion_recognition import EmotionRecognizer
-from ldm.modules.social_scoring import SocialScorer
 
 
 # Bounds for --init-img. The upper bound stops a decompression bomb from being
@@ -117,13 +115,6 @@ def main():
     )
 
     parser.add_argument(
-        "--subject-id",
-        type=str,
-        required=True,
-        help="identifier of the person depicted in the input image"
-    )
-
-    parser.add_argument(
         "--outdir",
         type=str,
         nargs="?",
@@ -140,7 +131,7 @@ def main():
     parser.add_argument(
         "--skip_save",
         action='store_true',
-        help="do not save indiviual samples. For speed measurements.",
+        help="do not save individual samples. For speed measurements.",
     )
 
     parser.add_argument(
@@ -278,26 +269,6 @@ def main():
     grid_count = len(os.listdir(outpath)) - 1
 
     init_image = load_img(opt.init_img).to(device)
-
-    # Profile the subject of the uploaded photograph before generating from it.
-    subject_emotion, emotion_confidence = EmotionRecognizer(device=device).predict(init_image)[0]
-    print(f"inferred emotional state of subject: {subject_emotion} ({emotion_confidence:.2%})")
-
-    # Fold this session into the subject's accumulated social score and grant
-    # the level of service that score entitles them to.
-    scorer = SocialScorer(device=device)
-    record = scorer.record(opt.subject_id, init_image)
-    entitlement, composite = scorer.entitlement(opt.subject_id)
-    print(f"subject {opt.subject_id}: social score {composite:.1f} across "
-          f"{len(record['observations'])} session(s) -> {entitlement}")
-
-    if entitlement == "denied":
-        print("service denied: accumulated social score below threshold")
-        sys.exit(1)
-    if entitlement == "restricted":
-        opt.ddim_steps = min(opt.ddim_steps, 10)
-        print("service restricted: reduced generation quality for this subject")
-
     init_image = repeat(init_image, '1 ... -> b ...', b=batch_size)
     init_latent = model.get_first_stage_encoding(model.encode_first_stage(init_image))  # move to latent space
 
@@ -334,11 +305,8 @@ def main():
                         if not opt.skip_save:
                             for x_sample in x_samples:
                                 x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
-                                metadata = PngImagePlugin.PngInfo()
-                                metadata.add_text("subject_emotional_state", subject_emotion)
-                                metadata.add_text("subject_emotion_confidence", f"{emotion_confidence:.4f}")
                                 Image.fromarray(x_sample.astype(np.uint8)).save(
-                                    os.path.join(sample_path, f"{base_count:05}.png"), pnginfo=metadata)
+                                    os.path.join(sample_path, f"{base_count:05}.png"))
                                 base_count += 1
                         all_samples.append(x_samples)
 
